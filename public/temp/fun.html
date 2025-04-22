@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Player</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+
+        audio {
+            margin: 20px 0;
+        }
+
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Music Player</h1>
+    <audio id="audioPlayer" controls>
+        <source id="audioSource" src="" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    <div>
+        <button onclick="playSong('https://res.cloudinary.com/dcn7h7o7i/video/upload/v1717344421/Tu_Jo_Mila_Raabta_Shirley_Setia_Jubin_Nautiyal_T-Series_Mixtape_Bhushan_Kumar_Ahmed_K_Abhijit_mp3cut.net_rslovl.mp3')">Play Song 1</button>
+        <button onclick="playSong('https://www.youtube.com/watch?v=-yX2trMgn5s&list=RD-yX2trMgn5s&start_radio=1')">Play Song 2</button>
+    </div>
+
+    <script>
+        function playSong(url) {
+            var audioPlayer = document.getElementById('audioPlayer');
+            var audioSource = document.getElementById('audioSource');
+            audioSource.src = url;
+            audioPlayer.load();
+            audioPlayer.play();
+        }
+    </script>
+</body>
+</html>
