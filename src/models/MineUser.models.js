@@ -3,8 +3,10 @@ import mongoose from "mongoose";
 // Define a simple Achievement schema
 const achievementSchema = new mongoose.Schema({
   title: { type: String, required: true },
-  earnedAt: { type: Date, default: Date.now },
-  description: { type: String }
+  description: { type: String },
+  category: { type: String, enum: ['Combat', 'Mining', 'Exploration', 'Social'], default: 'Misc' },
+  points: { type: Number, default: 10 },
+  earnedAt: { type: Date, default: Date.now }
 }, { _id: false });
 
 // Define the MineUser schema (NO TTL)

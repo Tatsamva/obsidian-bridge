@@ -105,21 +105,37 @@ client.login(process.env.DISCORD_BOT_TOKEN).catch((error) => {
    return res.status(200).json(new ApiResponse(200, { onlinePlayers }, "Online players fetched"));
 });
 
- const checkLinkStatus = asyncHandler(async (req, res) => {
+const checkLinkStatus = asyncHandler(async (req, res) => {
   const { uuid } = req.params;
-
   if (!uuid) {
     throw new ApiError(400, "Missing UUID");
   }
 
-  const user = await MineUser.findOne({ uuid: uuid });
+  const user = await MineUser.findOne({ uuid });
 
   if (!user) {
     return res.status(404).json({ status: "not_found" });
   }
 
-  return res.status(200).json(new ApiResponse(200, user, "User found"));
+  let discordUsername = null;
+  if (user.discordId) {
+    try {
+      // fetch the user from Discord using the Discord client
+      const discordUser = await client.users.fetch(user.discordId);
+      discordUsername = `${discordUser.username}`; // or just discordUser.tag in older API
+    } catch (err) {
+      console.error("Failed to fetch Discord user:", err);
+      discordUsername = "Unknown or not found";
+    }
+  }
+
+  return res.status(200).json(
+    new ApiResponse(200, {
+      discordUsername,
+    }, "User found")
+  );
 });
+
 
 const checkcodeStatus = asyncHandler(async (req, res) => {
   const { code } = req.params;

@@ -18,8 +18,8 @@ const router = Router();
 // router.route("/pdf").get(PDF);
 router.route("/playerjoined").post(player_joined);
 router.route("/playerleft").post(player_left);
-router.get("/:uuid", checkLinkStatus);
-router.get("/:code", checkcodeStatus);
+router.get("/check/:uuid", checkLinkStatus);
+router.get("/check/:code", checkcodeStatus);
 router.route("/linkplayer").post(linkPlayer);
 
 export default router
