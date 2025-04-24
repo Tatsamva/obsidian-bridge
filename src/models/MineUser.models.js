@@ -13,6 +13,7 @@ const achievementSchema = new mongoose.Schema({
 const mineUserSchema = new mongoose.Schema({
   code: { type: String, required: true, unique: true },
   uuid: { type: String, required: true },
+  minecraftUserName: { type: String, required: true },
   discordId: { type: String, required: false }, // initially null until linked
   achievements: [achievementSchema],
   createdAt: { type: Date, default: Date.now } // Just a timestamp now, no auto-delete

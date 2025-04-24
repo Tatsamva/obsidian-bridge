@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { player_joined,player_left,checkLinkStatus,checkcodeStatus,linkPlayer} from "../controllers/user.controllers.js";
+import { player_joined,player_left,checkLinkStatus,checkcodeStatus,linkPlayer,player_death} from "../controllers/user.controllers.js";
 import { upload } from "../middlewares/multer.middleware.js"
 import { verfiyJWT } from "../middlewares/auth.middleware.js";
 
@@ -21,5 +21,5 @@ router.route("/playerleft").post(player_left);
 router.get("/check/:uuid", checkLinkStatus);
 router.get("/check/:code", checkcodeStatus);
 router.route("/linkplayer").post(linkPlayer);
-
+router.route("/death").post(player_death);
 export default router

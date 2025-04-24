@@ -3,7 +3,7 @@ import {ApiError} from "../utils/ApiError.js";
 import {ApiResponse} from "../utils/ApiResponse.js";
 import dotenv from "dotenv";
 import { MineUser } from "../models/MineUser.models.js";
-import {Client,GatewayIntentBits,Partials,Events, ChannelType }  from "discord.js";
+import {Client,GatewayIntentBits,Partials,Events, ChannelType,EmbedBuilder }  from "discord.js";
 import redis from "../utils/redisClient.js";
 
 dotenv.config();
@@ -27,59 +27,81 @@ client.login(process.env.DISCORD_BOT_TOKEN).catch((error) => {
  // Setup Discord client
 
 
-  const player_joined = asyncHandler(async (req, res) => {
-   const {username } = req.body;
- 
-   if (!username) {
-     throw new ApiError(400, "Missing player UUID or username");
-   }
- 
-   // You can later store this in DB here or fetch linked Discord
- 
-   // Example: Send a Discord message
-   const channelId = process.env.DISCORD_CHANNEL_ID;
-   const channel = await client.channels.fetch(channelId);
- 
-   if (!channel) {
-     throw new ApiError(500, "Discord channel not found");
-   }
- 
-   await channel.send({
-      content: "```diff\n+ 🎮 Player " + username + " joined the Minecraft server!\n```"
-    });
-    await redis.sadd("online_players", username);
- 
-   return res
-  .status(201)
-  .json(new ApiResponse(201, { username }, "Player join logged"));
- });
+ const player_joined = asyncHandler(async (req, res) => {
+  const { username, uuid } = req.body;
+
+  if (!username || !uuid) {
+    throw new ApiError(400, "Missing player UUID or username");
+  }
+
+  const channelId = process.env.DISCORD_CHANNEL_ID;
+  const channel = await client.channels.fetch(channelId);
+
+  if (!channel) {
+    throw new ApiError(500, "Discord channel not found");
+  }
+
+  const user = await MineUser.findOne({ uuid });
+
+
+  if (user && user.discordId) {
+    const embed = new EmbedBuilder()
+      .setColor(0x00ff00) // Green for "joined"
+      .setDescription(`🎮 Player <@${user.discordId}> **joined** the Minecraft server!`);
+  
+    channel.send({ embeds: [embed] });
+  }
+  else {
+    const embed = new EmbedBuilder()
+      .setColor(0x00ff00) // Green for "joined"
+      .setDescription(`🎮 Player ${username} joined the Minecraft server!`);
+  
+    channel.send({ embeds: [embed] });
+  }
+  await redis.sadd("online_players", username);
+
+  return res.status(201).json(new ApiResponse(201, { username }, "Player join logged"));
+});
+
 
  const player_left = asyncHandler(async (req, res) => {
-   const {username } = req.body;
- 
-   if (!username) {
-     throw new ApiError(400, "Missing player UUID or username");
-   }
- 
-   // You can later store this in DB here or fetch linked Discord
- 
-   // Example: Send a Discord message
-   const channelId = process.env.DISCORD_CHANNEL_ID;
-   const channel = await client.channels.fetch(channelId);
- 
-   if (!channel) {
-     throw new ApiError(500, "Discord channel not found");
-   }
- 
-   await channel.send({
-      content: "```diff\n- 🎮 Player " + username + " left the Minecraft server!\n```"
-    });
-    await redis.srem("online_players", username); 
-   return res
-  .status(201)
-  .json(new ApiResponse(201, { username }, "Player left logged"));
- });
- 
+  const { username, uuid } = req.body;
+
+  if (!username || !uuid) {
+    throw new ApiError(400, "Missing player UUID or username");
+  }
+
+  const channelId = process.env.DISCORD_CHANNEL_ID;
+  const channel = await client.channels.fetch(channelId);
+
+  if (!channel) {
+    throw new ApiError(500, "Discord channel not found");
+  }
+
+  const user = await MineUser.findOne({ uuid });
+
+
+  if (user && user.discordId) {
+    const embed = new EmbedBuilder()
+    .setColor(0xff0000) // Red for "left"
+    .setDescription(`🎮 Player <@${user.discordId}> **left** the Minecraft server!`);
+
+  
+    channel.send({ embeds: [embed] });
+  }
+  else {
+    const embed = new EmbedBuilder()
+    .setColor(0x00ff00) // Green for "joined"
+    .setDescription(`🎮 Player ${username} left the Minecraft server!`);
+
+  channel.send({ embeds: [embed] });
+  }
+  
+  await redis.srem("online_players", username);
+
+  return res.status(201).json(new ApiResponse(201, { username }, "Player left logged"));
+});
+
 
  const online_player_list = asyncHandler(async (req, res) => {
    // Fetch online players from Redis
@@ -107,6 +129,7 @@ client.login(process.env.DISCORD_BOT_TOKEN).catch((error) => {
 
 const checkLinkStatus = asyncHandler(async (req, res) => {
   const { uuid } = req.params;
+
   if (!uuid) {
     throw new ApiError(400, "Missing UUID");
   }
@@ -114,15 +137,16 @@ const checkLinkStatus = asyncHandler(async (req, res) => {
   const user = await MineUser.findOne({ uuid });
 
   if (!user) {
+    console.log("User not found");
     return res.status(404).json({ status: "not_found" });
   }
 
   let discordUsername = null;
+
   if (user.discordId) {
     try {
-      // fetch the user from Discord using the Discord client
       const discordUser = await client.users.fetch(user.discordId);
-      discordUsername = `${discordUser.username}`; // or just discordUser.tag in older API
+      discordUsername = discordUser.username || "Unknown";
     } catch (err) {
       console.error("Failed to fetch Discord user:", err);
       discordUsername = "Unknown or not found";
@@ -130,11 +154,11 @@ const checkLinkStatus = asyncHandler(async (req, res) => {
   }
 
   return res.status(200).json(
-    new ApiResponse(200, {
-      discordUsername,
-    }, "User found")
+    new ApiResponse(200, { discordUsername }, "User found")
   );
 });
+
+
 
 
 const checkcodeStatus = asyncHandler(async (req, res) => {
@@ -154,101 +178,140 @@ const checkcodeStatus = asyncHandler(async (req, res) => {
 });
 
 
- const linkPlayer = asyncHandler(async (req, res) => {
-  const { uuid, code } = req.body;
+const linkPlayer = asyncHandler(async (req, res) => {
+  const { uuid, code, minecraftUserName } = req.body;
+  console.log("UUID:", uuid);
+  console.log("Code:", code);
+  console.log("Minecraft Username:", minecraftUserName);
 
   if (!uuid || !code) {
     throw new ApiError(400, "Missing UUID or Code");
   }
 
-  // Check if the code already exists in the database
   const existingCode = await MineUser.findOne({ code });
-
   if (existingCode) {
     return res.status(409).json({ status: "code_exists", message: "Link code already exists." });
   }
 
-  // Check if the user already exists
   const existingUser = await MineUser.findOne({ uuid });
-
   if (existingUser) {
     return res.status(409).json({ status: "user_exists", message: "User already linked." });
   }
 
-  // Create a new user document and link the code
-  const newUser = new MineUser({
-    uuid,
-    code,
-  });
-
-  // Save the new user to the database
+  const newUser = new MineUser({ uuid, code, minecraftUserName });
   await newUser.save();
 
-  // Respond back to the client with success
   return res.status(201).json(new ApiResponse(201, { uuid, code }, "Player linked and saved successfully"));
 });
 
+const player_death = asyncHandler(async (req, res) => {
+  const { location, uuid } = req.body;
+  if (!location || !uuid) {
+    throw new ApiError(400, "Missing location or UUID in request body");
+  }
+
+  const user = await MineUser.findOne({ uuid });
+  if (!user) {
+    throw new ApiError(400, "User not found");
+  }
+  const { x, y, z } = location;
+  const formattedLocation = `X: ${x.toFixed(2)}, Y: ${y.toFixed(2)}, Z: ${z.toFixed(2)}`;
+  // Emoji map for dimensions
+  const dimensionEmojiMap = {
+    "overworld": "<:overworld:1364662060675498116>", // Replace with your actual emoji
+    "nether": "<:nether:1364662011333709955>",
+    "end": "<:end:1364662671403782186>",
+  };
+
+  const readableDimensionMap = {
+    "overworld": "Overworld",
+    "nether": "Nether",
+    "end": "End",
+  };
+
+  const emoji = dimensionEmojiMap[location.dimension] || "🌍";
+  const dimensionName = readableDimensionMap[location.dimension] || "Unknown";
+
+  if (user?.discordId) {
+    try {
+      const discordUser = await client.users.fetch(user.discordId, { force: true });
+
+      const dmChannel = await discordUser.createDM();
+      if (dmChannel.type === ChannelType.DM) {
+        const embed = new EmbedBuilder()
+          .setColor(0xff0000)
+          .setTitle("💀 You Died!")
+          .setDescription(`You died in ${emoji} **${dimensionName}** at:\n\`${formattedLocation}\``)
+          .setTimestamp();
+
+        await dmChannel.send({ embeds: [embed] });
+      }
+    } catch (error) {
+      console.error(`Failed to DM user ${user.discordId}:`, error);
+    }
+  }
+
+  return res.status(201).json(new ApiResponse(201, { uuid, location }, "Player death logged"));
+});
 
 //bot commands
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
+
   const content = message.content.toLowerCase().trim();
- 
 
+  // Handle DM commands
   if (message.channel.type === ChannelType.DM) {
-
-    
-    // Handle DM-specific commands
     if (content.startsWith("/link")) {
       const parts = content.split(" ");
       const code = parts[1];
-  
+
       if (!code || !/^\d{6}$/.test(code)) {
         return message.reply("⚠️ Please provide a valid 6-digit code. Usage: `/link 123456`");
       }
-  
+
       try {
         const user = await MineUser.findOne({ code });
-  
+
         if (!user) {
           return message.reply("❌ Invalid or expired code.");
         }
-  
+
         if (user.discordId) {
           return message.reply("⚠️ This code has already been used to link another account.");
         }
-  
-        // Save the Discord ID to the user's Minecraft account
+
         user.discordId = message.author.id;
         await user.save();
-  
-        // Send confirmation message to the user who linked the account
+
         await message.reply("✅ Your Minecraft and Discord accounts are now linked!");
-  
-        // Send a message to the user who was linked
+
         const linkedUser = await client.users.fetch(user.discordId);
         if (linkedUser) {
           linkedUser.send("Your Minecraft and Discord accounts have been successfully linked! 🎮");
         }
-  
       } catch (err) {
         console.error("Linking error:", err);
         return message.reply("⚠️ Something went wrong. Please try again later.");
       }
     }
+
+    return; // Exit DM context after handling
   }
 
- 
-
-  // Handle server messages
+  // Server commands
   if (content === "help") {
     return message.channel.send(
-      `Hi ${message.author}, here are some commands you can try:\n- \`/online_player_list\`: List online players\n- \`hi\`: Get a friendly greeting\n- \`yo\`: Casual greeting\nLet me know if you need anything else!`
+      `Hi ${message.author}, here are some commands you can try:\n` +
+      `- \`/online\`: List online players\n` +
+      `- \`hi\`: Get a friendly greeting\n` +
+      `- \`yo\`: Casual greeting\n` +
+      `- \`/whois @user\`: Get linked Minecraft account`
     );
   }
 
-  if (content === "/online_player_list") {
+  if (content === "/online") {
     try {
       const onlinePlayers = await redis.smembers("online_players");
       if (!onlinePlayers || onlinePlayers.length === 0) {
@@ -258,12 +321,30 @@ client.on("messageCreate", async (message) => {
       return message.reply(`🎮 Currently online players: ${onlinePlayers.join(", ")}`);
     } catch (err) {
       console.error("Error fetching players:", err);
+      return message.reply("⚠️ Could not retrieve online players.");
     }
   }
-  const targetUserId = '745704600283250748'; // Manually replace this with the user ID each time
 
-  // Command to say hi to the specified user
+  if (content.startsWith("/whois")) {
+    const mentionedUser = message.mentions.users.first();
 
+    if (!mentionedUser) {
+      return message.reply("⚠️ Please mention a user. Usage: `/whois @username`");
+    }
+
+    try {
+      const linkedUser = await MineUser.findOne({ discordId: mentionedUser.id });
+
+      if (!linkedUser) {
+        return message.reply(`❌ No Minecraft account linked to ${mentionedUser.tag}.`);
+      }
+
+      return message.reply(`🧍‍♂️ ${mentionedUser} is linked to Minecraft username: **${linkedUser.minecraftUserName}**`);
+    } catch (err) {
+      console.error("Error in /whois command:", err);
+      return message.reply("⚠️ Something went wrong. Please try again later.");
+    }
+  }
 });
 
 export 
@@ -272,7 +353,8 @@ export
    player_left,
    checkLinkStatus,
    checkcodeStatus,
-   linkPlayer
+   linkPlayer,
+   player_death
    
    
 }
