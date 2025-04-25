@@ -254,7 +254,126 @@ const player_death = asyncHandler(async (req, res) => {
   return res.status(201).json(new ApiResponse(201, { uuid, location }, "Player death logged"));
 });
 
-//bot commands
+const player_coord = asyncHandler(async (req, res) => {
+  const { uuid, location } = req.body;
+
+  if (!uuid || !location) {
+    throw new ApiError(400, "Missing UUID or location");
+  }
+
+  const user = await MineUser.findOne({ uuid });
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const { x, y, z, dimension } = location;
+  const formattedLocation = `X: ${x.toFixed(2)}, Y: ${y.toFixed(2)}, Z: ${z.toFixed(2)}`;
+
+  const dimensionEmojiMap = {
+    "overworld": "<:overworld:1364662060675498116>",
+    "nether": "<:nether:1364662011333709955>",
+    "end": "<:end:1364662671403782186>",
+  };
+
+  const readableDimensionMap = {
+    "overworld": "Overworld",
+    "nether": "Nether",
+    "end": "End",
+  };
+
+  const emoji = dimensionEmojiMap[dimension] || "🌍";
+  const dimensionName = readableDimensionMap[dimension] || "Unknown";
+
+  const channelId = process.env.DISCORD_CHANNEL_ID;
+  const channel = await client.channels.fetch(channelId);
+
+  if (!channel) {
+    throw new ApiError(500, "Discord channel not found");
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle("📍 Player Coordinate")
+    .setDescription(`🧭 Player <@${user.discordId || "unknown"}> shared their location:`)
+    .addFields(
+      { name: "Dimension", value: `${emoji} ${dimensionName}`, inline: true },
+      { name: "Coordinates", value: `\`${formattedLocation}\``, inline: true }
+    )
+    .setTimestamp();
+
+  await channel.send({ embeds: [embed] });
+
+  return res.status(201).json(new ApiResponse(201, { uuid, location }, "Player coordinates shared"));
+});
+
+// Bot commands registration
+client.on('interactionCreate', async interaction => {
+  if (!interaction.isChatInputCommand()) return;
+
+  const { commandName } = interaction;
+
+  try {
+    if (commandName === 'link') {
+      const code = interaction.options.getString('code');
+
+      if (!code || !/^\d{6}$/.test(code)) {
+        return await interaction.reply({ content: "⚠️ Please provide a valid 6-digit code.", ephemeral: true });
+      }
+
+      const user = await MineUser.findOne({ code });
+
+      if (!user) {
+        return await interaction.reply({ content: "❌ Invalid or expired code.", ephemeral: true });
+      }
+
+      if (user.discordId) {
+        return await interaction.reply({ content: "⚠️ This code has already been used to link another account.", ephemeral: true });
+      }
+
+      user.discordId = interaction.user.id;
+      await user.save();
+
+      await interaction.reply({ content: "✅ Your Minecraft and Discord accounts are now linked!" });
+
+      try {
+        const linkedUser = await client.users.fetch(user.discordId);
+        if (linkedUser) {
+          await linkedUser.send("🎉 Your Minecraft and Discord accounts have been successfully linked!");
+        }
+      } catch (dmErr) {
+        console.warn("Could not DM user after linking:", dmErr);
+      }
+    }
+
+    else if (commandName === 'online_player_list') {
+      const onlinePlayers = await redis.smembers('online_players');
+
+      if (!onlinePlayers.length) {
+        return await interaction.reply("No players online.");
+      }
+
+      return await interaction.reply(`🎮 Currently online players: ${onlinePlayers.join(', ')}`);
+    }
+
+    else if (commandName === 'whois') {
+      const user = interaction.options.getUser('user');
+      const linkedUser = await MineUser.findOne({ discordId: user.id });
+
+      if (!linkedUser) {
+        return await interaction.reply(`❌ No Minecraft account linked to ${user.tag}.`);
+      }
+
+      return await interaction.reply(`🧍‍♂️ ${user.tag} is linked to Minecraft username: **${linkedUser.minecraftUserName}**`);
+    }
+  } catch (err) {
+    console.error("Slash command error:", err);
+    if (interaction.replied || interaction.deferred) {
+      return interaction.editReply("⚠️ An unexpected error occurred. Please try again later.");
+    } else {
+      return interaction.reply({ content: "⚠️ Something went wrong while executing the command.", ephemeral: true });
+    }
+  }
+});
 
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
@@ -268,7 +387,7 @@ client.on("messageCreate", async (message) => {
       const code = parts[1];
 
       if (!code || !/^\d{6}$/.test(code)) {
-        return message.reply("⚠️ Please provide a valid 6-digit code. Usage: `/link 123456`");
+        return message.reply("⚠️ Please provide a valid 6-digit code. Usage: /link 123456");
       }
 
       try {
@@ -297,17 +416,17 @@ client.on("messageCreate", async (message) => {
       }
     }
 
-    return; // Exit DM context after handling
+    return; // Exit after handling DM command
   }
 
   // Server commands
   if (content === "help") {
     return message.channel.send(
       `Hi ${message.author}, here are some commands you can try:\n` +
-      `- \`/online\`: List online players\n` +
-      `- \`hi\`: Get a friendly greeting\n` +
-      `- \`yo\`: Casual greeting\n` +
-      `- \`/whois @user\`: Get linked Minecraft account`
+      `- /online: List online players\n` +
+      `- hi: Get a friendly greeting\n` +
+      `- yo: Casual greeting\n` +
+      `- /whois @user: Get linked Minecraft account`
     );
   }
 
@@ -329,7 +448,7 @@ client.on("messageCreate", async (message) => {
     const mentionedUser = message.mentions.users.first();
 
     if (!mentionedUser) {
-      return message.reply("⚠️ Please mention a user. Usage: `/whois @username`");
+      return message.reply("⚠️ Please mention a user. Usage: /whois @username");
     }
 
     try {
@@ -354,7 +473,8 @@ export
    checkLinkStatus,
    checkcodeStatus,
    linkPlayer,
-   player_death
+   player_death,
+   player_coord
    
    
 }
