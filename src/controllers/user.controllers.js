@@ -313,58 +313,135 @@ client.on('interactionCreate', async interaction => {
   const { commandName } = interaction;
 
   try {
-    if (commandName === 'link') {
+     if (commandName === 'link') {
       const code = interaction.options.getString('code');
-
+    
       if (!code || !/^\d{6}$/.test(code)) {
-        return await interaction.reply({ content: "⚠️ Please provide a valid 6-digit code.", ephemeral: true });
+        const embed = {
+          color: 0xF9D301, // Warning yellow
+          title: "⚠️ Invalid Code",
+          description: "Please provide a valid **6-digit** code to link your accounts.",
+          timestamp: new Date(),
+        };
+        return await interaction.reply({ embeds: [embed], ephemeral: true });
       }
-
+    
       const user = await MineUser.findOne({ code });
-
+    
       if (!user) {
-        return await interaction.reply({ content: "❌ Invalid or expired code.", ephemeral: true });
+        const embed = {
+          color: 0xED4245, // Error red
+          title: "❌ Invalid or Expired Code",
+          description: "The code you entered is either invalid or has expired. Please generate a new one.",
+          timestamp: new Date(),
+        };
+        return await interaction.reply({ embeds: [embed], ephemeral: true });
       }
-
+    
       if (user.discordId) {
-        return await interaction.reply({ content: "⚠️ This code has already been used to link another account.", ephemeral: true });
+        const embed = {
+          color: 0xF9D301, // Warning yellow
+          title: "⚠️ Code Already Used",
+          description: "This code has already been used to link another account. Please generate a new one.",
+          timestamp: new Date(),
+        };
+        return await interaction.reply({ embeds: [embed], ephemeral: true });
       }
-
+    
       user.discordId = interaction.user.id;
       await user.save();
-
-      await interaction.reply({ content: "✅ Your Minecraft and Discord accounts are now linked!" });
-
+    
+      const successEmbed = {
+        color: 0x32B876, // Success green
+        title: "✅ Successfully Linked!",
+        description: `Your **Minecraft** and **Discord** accounts are now linked!\n\nWelcome aboard, ${interaction.user.username}!`,
+        timestamp: new Date(),
+        footer: {
+          text: "Account Linking Complete",
+        },
+      };
+    
+      await interaction.reply({ embeds: [successEmbed] });
+    
       try {
         const linkedUser = await client.users.fetch(user.discordId);
         if (linkedUser) {
-          await linkedUser.send("🎉 Your Minecraft and Discord accounts have been successfully linked!");
+          const dmEmbed = {
+            color: 0x32B876,
+            title: "🎉 Account Linked!",
+            description: "Your **Minecraft** and **Discord** accounts have been successfully linked.\n\nEnjoy your adventure!",
+            timestamp: new Date(),
+          };
+          await linkedUser.send({ embeds: [dmEmbed] });
         }
       } catch (dmErr) {
         console.warn("Could not DM user after linking:", dmErr);
       }
     }
+    
 
-    else if (commandName === 'online_player_list') {
+    else if (commandName === 'online') {
       const onlinePlayers = await redis.smembers('online_players');
-
+    
       if (!onlinePlayers.length) {
         return await interaction.reply("No players online.");
       }
-
-      return await interaction.reply(`🎮 Currently online players: ${onlinePlayers.join(', ')}`);
+    
+      const maxPlayers = 10;
+      const playerCount = onlinePlayers.length;
+    
+      const playerList = onlinePlayers.map((player, index) => `**${index + 1}.** ${player}`).join('\n');
+    
+      const embed = new EmbedBuilder()
+        .setColor(0x32B876)
+        .setTitle(`🟢 Online Players (${playerCount}/${maxPlayers})`)
+        .setDescription(playerList)
+        .setTimestamp()
+        .setFooter({ text: 'Server Status' });
+    
+      return await interaction.reply({ embeds: [embed] });
     }
+    
+    
 
     else if (commandName === 'whois') {
       const user = interaction.options.getUser('user');
       const linkedUser = await MineUser.findOne({ discordId: user.id });
-
+    
       if (!linkedUser) {
-        return await interaction.reply(`❌ No Minecraft account linked to ${user.tag}.`);
+        const embed = {
+          color: 0xED4245, // Error red
+          title: "❌ No Linked Account",
+          description: `No Minecraft account is linked to **${user.tag}**.`,
+          timestamp: new Date(),
+        };
+        return await interaction.reply({ embeds: [embed] });
       }
-
-      return await interaction.reply(`🧍‍♂️ ${user.tag} is linked to Minecraft username: **${linkedUser.minecraftUserName}**`);
+    
+      const successEmbed = {
+        color: 0x32B876, // Success green
+        title: "🧍‍♂️ Linked Account Found",
+        fields: [
+          {
+            name: "Discord User",
+            value: `${user.tag}`,
+            inline: true,
+          },
+          {
+            name: "Minecraft Username",
+            value: `**${linkedUser.minecraftUserName}**`,
+            inline: true,
+          },
+        ],
+        timestamp: new Date(),
+        footer: {
+          text: "Account Link Checker",
+        },
+      };
+    
+      return await interaction.reply({ embeds: [successEmbed] });
     }
+    
   } catch (err) {
     console.error("Slash command error:", err);
     if (interaction.replied || interaction.deferred) {
