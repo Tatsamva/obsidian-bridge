@@ -14,7 +14,7 @@ const commands = [
         .setRequired(true)),
 
   new SlashCommandBuilder()
-    .setName('online_player_list')
+    .setName('online')
     .setDescription('Show currently online players'),
 
   new SlashCommandBuilder()
