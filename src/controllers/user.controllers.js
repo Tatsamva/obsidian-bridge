@@ -441,6 +441,30 @@ client.on('interactionCreate', async interaction => {
     
       return await interaction.reply({ embeds: [successEmbed] });
     }
+     else if (commandName === 'help') {
+  const helpEmbed = {
+    color: 0x5865F2, // Discord blurple
+    title: "📖 Bot & Minecraft Commands Help",
+    description:
+      "**🔧 Discord Bot Commands:**\n" +
+      "• `/link <code>` – Link your Minecraft account (get code in-game using `/link`)\n" +
+      "• `/online` – Show currently online players\n" +
+      "• `/whois <user>` – Show linked Minecraft account for a Discord user\n" +
+      "• `/help` – Show this help menu\n\n" +
+      "**🎮 In-Game Minecraft Commands:**\n" +
+      "• `/link` – Generate a 6-digit code to link your Minecraft with Discord\n" +
+      "• `/mycoord` – Sends your current coordinates to the linked Discord account (server channel)\n" +
+      "• `/sethome` – Set your home location (saves coordinates)\n" +
+      "• `/gethome` – Sends your home coordinates to your Discord DMs",
+    timestamp: new Date(),
+    footer: {
+      text: "Minecraft & Discord Integration Help",
+    },
+  };
+
+  return await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
+}
+
     
   } catch (err) {
     console.error("Slash command error:", err);
