@@ -24,6 +24,10 @@ const commands = [
       option.setName('user')
         .setDescription('User to check')
         .setRequired(true)),
+  new SlashCommandBuilder()
+  .setName('help')
+  .setDescription('Show a list of available commands'),
+
 ].map(command => command.toJSON());
 
 export const registerCommands = async () => {
