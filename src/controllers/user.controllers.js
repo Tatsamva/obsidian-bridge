@@ -91,7 +91,7 @@ client.login(process.env.DISCORD_BOT_TOKEN).catch((error) => {
   }
   else {
     const embed = new EmbedBuilder()
-    .setColor(0x00ff00) // Green for "joined"
+    .setColor(0xff0000) // Green for "joined"
     .setDescription(`🎮 Player ${username} left the Minecraft server!`);
 
   channel.send({ embeds: [embed] });
