@@ -306,6 +306,95 @@ const player_coord = asyncHandler(async (req, res) => {
   return res.status(201).json(new ApiResponse(201, { uuid, location }, "Player coordinates shared"));
 });
 
+
+const setHome = asyncHandler(async (req, res) => {
+  const { uuid, home } = req.body;  // changed from location -> home
+
+  if (!uuid || !home) {
+    throw new ApiError(400, "Missing UUID or home location");
+  }
+
+  const user = await MineUser.findOne({ uuid });
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  const { x, y, z, dimension } = home;
+  const formattedLocation = `X: ${x.toFixed(2)}, Y: ${y.toFixed(2)}, Z: ${z.toFixed(2)}`;
+
+  const dimensionEmojiMap = {
+    "overworld": "<:overworld:1364662060675498116>",
+    "nether": "<:nether:1364662011333709955>",
+    "end": "<:end:1364662671403782186>",
+  };
+
+  const readableDimensionMap = {
+    "overworld": "Overworld",
+    "nether": "Nether",
+    "end": "End",
+  };
+
+  const emoji = dimensionEmojiMap[dimension] || "🌍";
+  const dimensionName = readableDimensionMap[dimension] || "Unknown";
+
+  // Send DM if discordId is available
+  if (user?.discordId) {
+    try {
+      const discordUser = await client.users.fetch(user.discordId, { force: true });
+      const dmChannel = await discordUser.createDM();
+  
+      const embed = new EmbedBuilder()
+        .setColor(0x3498db)
+        .setTitle("🏡 Home Set!")
+        .setDescription(`You set your home in ${emoji} **${dimensionName}** at:\n\`${formattedLocation}\``)
+        .setTimestamp();
+  
+      await dmChannel.send({ embeds: [embed] });
+    } catch (error) {
+      console.error(`Failed to DM user ${user.discordId}:`, error);
+    }
+  }
+  
+
+  // Save home location as string (e.g., "overworld:100.00,65.00,200.00")
+  user.home = `${dimension}:${x.toFixed(2)},${y.toFixed(2)},${z.toFixed(2)}`;
+  await user.save();
+
+  return res.status(201).json(new ApiResponse(201, { uuid, home }, "Home location saved and DM sent"));
+});
+
+const getHome = asyncHandler(async (req, res) => {
+  const { uuid } = req.params;
+
+  if (!uuid) {
+    throw new ApiError(400, "UUID parameter is required");
+  }
+
+  const user = await MineUser.findOne({ uuid });
+
+  if (!user || !user.home) {
+    throw new ApiError(404, "Home not found for this UUID");
+  }
+
+  const [dimension, coords] = user.home.split(":");
+  const [xStr, yStr, zStr] = coords.split(",");
+  const x = parseFloat(xStr);
+  const y = parseFloat(yStr);
+  const z = parseFloat(zStr);
+
+  return res.status(200).json({
+    success: true,
+    statusCode: 200,
+    message: "Home location retrieved",
+    home: {
+      x,
+      y,
+      z,
+      dimension
+    }
+  });
+});
+
 // Bot commands registration
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
