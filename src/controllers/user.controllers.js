@@ -664,7 +664,9 @@ export
    checkcodeStatus,
    linkPlayer,
    player_death,
-   player_coord
+   player_coord,
+   getHome,
+   setHome
    
    
 }
